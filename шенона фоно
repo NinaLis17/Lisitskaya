@@ -1,90 +1,109 @@
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ShannonFano {
 
     public static void main(String[] args) {
-        double[] probabilities = {0.5, 0.2, 0.1, 0.1, 0.05, 0.05};
-        String[] symbols = {"A", "B", "C", "D", "E", "F"};
+        // Вероятности символов
+        Map<Character, Double> probabilities = new HashMap<>();
+        probabilities.put('A', 0.5);
+        probabilities.put('B', 0.2);
+        probabilities.put('C', 0.1);
+        probabilities.put('D', 0.1);
+        probabilities.put('E', 0.05);
+        probabilities.put('F', 0.05);
 
-        // Шаг 1: Вычисление энтропии
+
+        // 1. Построение кода Шеннона-Фано
+        Map<Character, String> shannonFanoCodes = shannonFano(probabilities);
+        System.out.println("Код Шеннона-Фано:");
+        printCodes(shannonFanoCodes);
+
+
+        // 2. Энтропия источника
         double entropy = calculateEntropy(probabilities);
-        System.out.println("Энтропия H(X): " + entropy + " бит/символ");
+        System.out.println("\nЭнтропия источника: " + entropy + " бит/символ");
 
-        // Шаг 2: Построение кода методом Шеннона-Фано
-        String[] codes = shannonFano(probabilities, symbols);
-        System.out.println("Коды Шеннона-Фано:");
-        for (int i = 0; i < codes.length; i++) {
-            System.out.println(symbols[i] + ": " + codes[i]);
-        }
+        // 3. Минимальная пропускная способность
+        double minBandwidth = entropy * 2; // 2 символа в секунду
+        System.out.println("Минимальная пропускная способность канала: " + minBandwidth + " бит/сек");
 
-        // Шаг 3: Определение избыточности и пропускной способности
-        double channelCapacity = 2; // символа в секунду
-        double averageCodeLength = calculateAverageCodeLength(codes, probabilities);
+
+        // 4. Избыточность источника
+        double averageCodeLength = calculateAverageCodeLength(shannonFanoCodes, probabilities);
         double redundancy = averageCodeLength - entropy;
-        
-        System.out.println("Средняя длина кода: " + averageCodeLength + " бит/символ");
-        System.out.println("Избыточность: " + redundancy + " бит/символ");
-        System.out.println("Пропускная способность канала: " + channelCapacity + " символов/сек");
+        System.out.println("Избыточность источника: " + redundancy + " бит/символ");
+
+        // 5. Количество бит на символ
+        System.out.println("Количество бит на символ: " + averageCodeLength + " бит");
     }
 
-    private static double calculateEntropy(double[] probabilities) {
-        double entropy = 0.0;
-        for (double p : probabilities) {
-            if (p > 0) {
-                entropy += p * (Math.log(p) / Math.log(2));
+    // Алгоритм Шеннона-Фано
+    static Map<Character, String> shannonFano(Map<Character, Double> probabilities) {
+        List<Map.Entry<Character, Double>> sortedProbabilities = new ArrayList<>(probabilities.entrySet());
+        Collections.sort(sortedProbabilities, (a, b) -> Double.compare(b.getValue(), a.getValue()));
+
+        return shannonFanoRecursive(sortedProbabilities, 0, "");
+    }
+
+    static Map<Character, String> shannonFanoRecursive(List<Map.Entry<Character, Double>> probabilities, int level, String code) {
+        Map<Character, String> codes = new HashMap<>();
+        double totalProbability = probabilities.stream().mapToDouble(Map.Entry::getValue).sum();
+        double leftProbability = 0;
+        int splitIndex = -1;
+
+        for (int i = 0; i < probabilities.size(); i++) {
+            leftProbability += probabilities.get(i).getValue();
+            if (leftProbability >= totalProbability / 2.0) {
+                splitIndex = i;
+                break;
             }
         }
-        return -entropy;
-    }
 
-    private static String[] shannonFano(double[] probabilities, String[] symbols) {
-        int n = probabilities.length;
-        String[] codes = new String[n];
-        shannonFanoRec(probabilities, symbols, codes, 0, n);
+        if (splitIndex == -1) splitIndex = probabilities.size() -1; //Обработка случая с одним символом
+
+        List<Map.Entry<Character, Double>> left = probabilities.subList(0, splitIndex + 1);
+        List<Map.Entry<Character, Double>> right = probabilities.subList(splitIndex + 1, probabilities.size());
+
+
+        for (Map.Entry<Character, Double> entry : left) {
+            codes.put(entry.getKey(), code + "0");
+        }
+        for (Map.Entry<Character, Double> entry : right) {
+            codes.put(entry.getKey(), code + "1");
+        }
+
+        if(left.size() > 1) codes.putAll(shannonFanoRecursive(left, level + 1, code + "0"));
+        if(right.size() > 1) codes.putAll(shannonFanoRecursive(right, level + 1, code + "1"));
+
         return codes;
     }
 
-    private static void shannonFanoRec(double[] probabilities, String[] symbols, String[] codes, int start, int end) {
-        if (start >= end) return;
-
-        // Если один символ, назначаем ему код
-        if (start == end - 1) {
-            codes[start] = "";
-            return;
-        }
-
-        double totalProbability = 0;
-        for (int i = start; i < end; i++) {
-            totalProbability += probabilities[i];
-        }
-
-        double cumulativeProbability = 0;
-        int splitIndex = start;
-        
-        // Найти точку разделения
-        while (splitIndex < end && cumulativeProbability + probabilities[splitIndex] < totalProbability / 2) {
-            cumulativeProbability += probabilities[splitIndex];
-            splitIndex++;
-        }
-
-        // Назначить коды
-        for (int i = start; i < splitIndex; i++) {
-            codes[i] = (codes[i] == null ? "" : codes[i]) + "0";
-        }
-        for (int i = splitIndex; i < end; i++) {
-            codes[i] = (codes[i] == null ? "" : codes[i]) + "1";
-        }
-
-        // Рекурсивно применить к подмассивам
-        shannonFanoRec(probabilities, symbols, codes, start, splitIndex);
-        shannonFanoRec(probabilities, symbols, codes, splitIndex, end);
+    // Вывод кодов
+    static void printCodes(Map<Character, String> codes) {
+        codes.forEach((symbol, code) -> System.out.println(symbol + ": " + code));
     }
 
-    private static double calculateAverageCodeLength(String[] codes, double[] probabilities) {
-        double averageLength = 0.0;
-        for (int i = 0; i < codes.length; i++) {
-            averageLength += probabilities[i] * codes[i].length();
+    // Расчет энтропии
+    static double calculateEntropy(Map<Character, Double> probabilities) {
+        double entropy = 0;
+        for (double p : probabilities.values()) {
+            if (p > 0) {
+                entropy -= p * (Math.log(p) / Math.log(2));
+            }
         }
-        return averageLength;
+        return entropy;
+    }
+
+    //Расчет средней длины кода
+    static double calculateAverageCodeLength(Map<Character, String> codes, Map<Character, Double> probabilities){
+        double avgLength = 0;
+        for(Map.Entry<Character,String> entry : codes.entrySet()){
+            avgLength += entry.getValue().length() * probabilities.get(entry.getKey());
+        }
+        return avgLength;
     }
 }
