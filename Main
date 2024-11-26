@@ -1,0 +1,125 @@
+import java.util.Arrays;
+
+public class Main {
+
+    public static void main(String[] args) {
+        // Исходные данные
+        double[][] channelStats = {
+                {97, 2, 1, 0},   // s1 -> [s1, s2, s3, s4]
+                {2, 98, 0, 0},   // s2 -> [s1, s2, s3, s4]
+                {0, 2, 96, 2},   // s3 -> [s1, s2, s3, s4]
+                {0, 0, 1, 99}    // s4 -> [s1, s2, s3, s4]
+        };
+
+        double[] sourceProbabilities = {0.37, 0.3, 0.23, 0.1}; // Вероятности источника
+
+        // Нормализация канальной матрицы
+        double[][] channelMatrix = normalizeChannelMatrix(channelStats);
+
+        // Матрица совместных вероятностей P(X,Y)
+        double[][] jointProbabilities = calculateJointProbabilities(channelMatrix, sourceProbabilities);
+
+        // Условная энтропия H(Y|X)
+        double H_cond = conditionalEntropy(channelMatrix, sourceProbabilities);
+
+        // Вероятности принятия символов P(Y)
+        double[] receivedProbabilities = new double[jointProbabilities[0].length];
+        for (int j = 0; j < jointProbabilities[0].length; j++) {
+            for (int i = 0; i < jointProbabilities.length; i++) {
+                receivedProbabilities[j] += jointProbabilities[i][j];
+            }
+        }
+
+        // Энтропия принятых сообщений H(Y)
+        double H_received = entropy(receivedProbabilities);
+
+        // Энтропия объединения H(X,Y)
+        double H_joint = jointEntropy(jointProbabilities);
+
+        // Информационные потери
+        double informationLoss = (H_joint - H_received) * 500;
+
+        // Принятая информация за 500 символов
+        double receivedInformation = 500 * H_received - informationLoss;
+
+        // Вывод результатов
+        System.out.println("Канальная матрица:");
+        printMatrix(channelMatrix);
+        System.out.printf("Условная энтропия H(Y|X): %.3f%n", H_cond);
+        System.out.printf("Энтропия принятых сообщений H(Y): %.3f%n", H_received);
+        System.out.printf("Энтропия объединения H(X,Y): %.3f%n", H_joint);
+        System.out.printf("Информационные потери: %.3f%n", informationLoss);
+        System.out.printf("Количество принятой информации за 500 символов: %.3f%n", receivedInformation);
+    }
+
+    private static double[][] normalizeChannelMatrix(double[][] channelStats) {
+        double[][] normalized = new double[channelStats.length][channelStats[0].length];
+
+        for (int i = 0; i < channelStats.length; i++) {
+            double sum = Arrays.stream(channelStats[i]).sum();
+            for (int j = 0; j < channelStats[i].length; j++) {
+                normalized[i][j] = channelStats[i][j] / sum;
+            }
+        }
+
+        return normalized;
+    }
+
+    private static double[][] calculateJointProbabilities(double[][] channelMatrix, double[] sourceProbabilities) {
+        double[][] jointProbabilities = new double[channelMatrix.length][channelMatrix[0].length];
+
+        for (int i = 0; i < channelMatrix.length; i++) {
+            for (int j = 0; j < channelMatrix[i].length; j++) {
+                jointProbabilities[i][j] = channelMatrix[i][j] * sourceProbabilities[i];
+            }
+        }
+
+        return jointProbabilities;
+    }
+
+    private static double conditionalEntropy(double[][] channelMatrix, double[] sourceProbabilities) {
+        double entropySum = 0.0;
+
+        for (int i = 0; i < channelMatrix.length; i++) {
+            entropySum += sourceProbabilities[i] * entropy(channelMatrix[i]);
+        }
+
+        return entropySum;
+    }
+
+    private static double entropy(double[] probabilities) {
+        double entropyValue = 0.0;
+
+        for (double p : probabilities) {
+            if (p > 0) {
+                entropyValue -= p * log2(p);
+            }
+        }
+
+        return entropyValue;
+    }
+    private static double jointEntropy(double[][] jointProbabilities) {
+        return entropy(flatten(jointProbabilities));
+    }
+
+    private static double[] flatten(double[][] matrix) {
+        int rows = matrix.length;
+        int cols = matrix[0].length;
+        double[] flatArray = new double[rows * cols];
+for (int i = 0; i < rows; i++) {
+            System.arraycopy(matrix[i], 0, flatArray, i * cols, cols);
+        }
+
+        return flatArray;
+    }
+
+    private static double log2(double x) {
+        return Math.log(x) / Math.log(2);
+    }
+
+    private static void printMatrix(double[][] matrix) {
+        for (double[] row : matrix) {
+            System.out.println(Arrays.toString(row));
+        }
+    }
+}
